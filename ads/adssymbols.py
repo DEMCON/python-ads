@@ -56,7 +56,8 @@ class Dummy(Array):
     _length_ = 1
     _type_ = c_ubyte
     def __init__(self, *args):
-        raise RuntimeError('Dummy ctypes object cannot be created or written')
+        pass # moved RuntimeError to where the variable is written
+        # raise RuntimeError('Dummy ctypes object cannot be created or written')
 
 class Entry:
     """
@@ -517,6 +518,8 @@ class Variable:
         else:
             # Write
             assert self.__ctype is not None
+            if isinstance( self.__cype, Dummy ):
+                raise RuntimeError('Dummy ctypes object cannot be created or written')
             if len(args) == 1 and len(kwargs)==0 and isinstance(args[0], self.__ctype):
                 # We have exactly one argument, which is of the correct type
                 data = args[0]
@@ -669,7 +672,9 @@ class AdsVariablesDefinition():
     
         self.ctypes[dtypename] = ctype
         return ctype        
- 
+
+
+
 def getVariables(netId = None, port = 851):
     cpyads.adsPortOpen()
     
