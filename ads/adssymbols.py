@@ -488,6 +488,22 @@ class Variable:
         
         return Variable(self.__vardef, idxStr, self.__symbol, type, offset)
 
+    def __setitem__(self, idx, data):
+        """
+
+        Slice-based indexing can be used to write the raw binary data
+        """
+        
+        assert isinstance(idx, slice) and self.__datatype is not None
+        # Slice based indexing --> read out raw data
+        start, stop, step = idx.start, idx.stop, idx.step
+        size = self.__datatype.size
+        assert step is None or step == 1
+        assert start >= 0
+        assert stop >= start and stop <= size
+        
+        cpyads.adsSyncWriteReq(self.__vardef.amsAddress, self.__symbol.iGroup, self.__symbol.iOffs + self.__offset + start, (cpyads.c_ubyte * (stop-start)).from_buffer(data))
+    
 
     def __call__(self, *args, **kwargs):
         """
@@ -644,7 +660,11 @@ class AdsVariablesDefinition():
                         warnings.warn('union not yet supported')
                         pass
                         
-                    
+                
+                if o < dtype.size:
+                    # Add dummy field with empty name to fill space
+                    fields.append(('', c_char * (dtype.size-o)))
+            
                 ctype = type(dtype.name, (Structure,), dict(_fields_ = fields, _pack_ = 8))
                 
             else:
