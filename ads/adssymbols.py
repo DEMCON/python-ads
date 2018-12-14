@@ -441,11 +441,9 @@ class Variable:
         
         if isinstance(idx, slice) and self.__datatype is not None:
             # Slice based indexing --> read out raw data
-            start, stop, step = idx.start, idx.stop, idx.step
-            size = self.__datatype.size
-            assert step is None or step == 1
-            assert start >= 0
-            assert stop >= start and stop <= size
+            start, stop, step = idx.indices(self.__datatype.size)
+            if step!=1:
+                raise ValueError('Step size should be 1')
             
             data = cpyads.adsSyncReadReq(self.__vardef.amsAddress, self.__symbol.iGroup, self.__symbol.iOffs + self.__offset + start, cpyads.c_ubyte * (stop-start))
             return data
@@ -495,14 +493,24 @@ class Variable:
         """
         
         assert isinstance(idx, slice) and self.__datatype is not None
-        # Slice based indexing --> read out raw data
-        start, stop, step = idx.start, idx.stop, idx.step
-        size = self.__datatype.size
-        assert step is None or step == 1
-        assert start >= 0
-        assert stop >= start and stop <= size
+        # Slice based indexing --> write raw data
+        start, stop, step = idx.indices(self.__datatype.size)
+        if step!=1:
+            raise ValueError('Step size should be 1')
+
+        view = memoryview(data)
+        # Quirck to get a ctypes object which maps to the memoryview, see 
+        # https://lists.gt.net/python/dev/1011232
+        address = c_void_p()
+        length = c_ssize_t()
+        pythonapi.PyObject_AsReadBuffer(py_object(view), byref(address), byref(length))
         
-        cpyads.adsSyncWriteReq(self.__vardef.amsAddress, self.__symbol.iGroup, self.__symbol.iOffs + self.__offset + start, (cpyads.c_ubyte * (stop-start)).from_buffer(data))
+        if stop-start != length.value:
+            raise ValueError('data length does not match slice size')
+        
+        cbyte_array = (c_ubyte * length.value).from_address(address.value)
+        
+        cpyads.adsSyncWriteReq(self.__vardef.amsAddress, self.__symbol.iGroup, self.__symbol.iOffs + self.__offset + start, cbyte_array)
     
 
     def __call__(self, *args, **kwargs):
