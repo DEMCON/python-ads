@@ -92,7 +92,9 @@ class AdsDll:
                 (lib.AdsGetLocalAddress, [POINTER(SAmsAddr)]),
                 (lib.AdsSyncReadReq, [POINTER(SAmsAddr), c_ulong, c_ulong, c_ulong, c_void_p]),
                 (lib.AdsSyncWriteReq, [POINTER(SAmsAddr), c_ulong, c_ulong, c_ulong, c_void_p]),
-                ]:
+                (lib.AdsSyncWriteControlReq, [POINTER(SAmsAddr), c_ushort, c_ushort, c_ulong, c_void_p]),
+                (lib.AdsSyncReadStateReq, [POINTER(SAmsAddr), POINTER(c_ushort), POINTER(c_ushort)])
+            ]:
                 
                 function.argtypes = argtypes
                 function.restype = checkError
@@ -113,6 +115,33 @@ def adsSyncReadReq(amsAddr, indexGroup, indexOffset, ctype):
 
 def adsSyncWriteReq(amsAddr, indexGroup, indexOffset, data):
     AdsDll.lib().AdsSyncWriteReq(byref(amsAddr), indexGroup, indexOffset, sizeof(data), byref(data))
+
+def adsGetAdsAndDeviceState(amsAddr):
+    ads_state = c_ushort(0)
+    device_state = c_ushort(0)
+    AdsDll.lib().AdsSyncReadStateReq(byref(amsAddr), byref(c_ushort(0)), byref(device_state))
+    return ads_state, device_state
+
+def adsStop(amsAddr):
+    ads_state, device_state = adsGetAdsAndDeviceState(amsAddr)  # Retrieve device state so we don't alter it next
+    AdsDll.lib().AdsSyncWriteControlReq(byref(amsAddr), c_ushort(6), device_state, 0, c_void_p())
+
+def adsReset(amsAddr):
+    ads_state, device_state = adsGetAdsAndDeviceState(amsAddr)  # Retrieve device state so we don't alter it next
+    AdsDll.lib().AdsSyncWriteControlReq(byref(amsAddr), c_ushort(2), device_state, 0, c_void_p())
+
+def adsStart(amsAddr):
+    ads_state, device_state = adsGetAdsAndDeviceState(amsAddr)  # Retrieve device state so we don't alter it next
+    AdsDll.lib().AdsSyncWriteControlReq(byref(amsAddr), c_ushort(5), device_state, 0, c_void_p())
+
+def adsRestart(amsAddr):
+    # Stopping ads can throw an exception if it was not currently running but we can reset anyway
+    try:
+        adsStop(amsAddr)
+    except:
+        pass
+    adsReset(amsAddr)
+    adsStart(amsAddr)
 
 __all__ = [ 'adsPortOpen', 'adsGetLocalAddress', 'adsSyncReadReq' ]
     
