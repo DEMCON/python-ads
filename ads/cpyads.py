@@ -117,29 +117,33 @@ def adsSyncWriteReq(amsAddr, indexGroup, indexOffset, data):
     AdsDll.lib().AdsSyncWriteReq(byref(amsAddr), indexGroup, indexOffset, sizeof(data), byref(data))
 
 def adsGetAdsAndDeviceState(amsAddr):
-    ads_state = c_ushort(0)
-    device_state = c_ushort(0)
-    AdsDll.lib().AdsSyncReadStateReq(byref(amsAddr), byref(c_ushort(0)), byref(device_state))
-    return ads_state, device_state
+    adsState = c_ushort(0)
+    deviceState = c_ushort(0)
+    AdsDll.lib().AdsSyncReadStateReq(byref(amsAddr), byref(adsState), byref(deviceState))
+    return adsState, deviceState
+
+def adsSetState(amsAddr, adsState=None, deviceState=None):
+    currentAdsState, currentDeviceState = adsGetAdsAndDeviceState(amsAddr)
+    if adsState is None:
+        adsState = currentAdsState
+    if deviceState is None:
+        deviceState = currentDeviceState
+    AdsDll.lib().AdsSyncWriteControlReq(byref(amsAddr), adsState, deviceState, 0, c_void_p())
 
 def adsStop(amsAddr):
-    ads_state, device_state = adsGetAdsAndDeviceState(amsAddr)  # Retrieve device state so we don't alter it next
-    AdsDll.lib().AdsSyncWriteControlReq(byref(amsAddr), c_ushort(6), device_state, 0, c_void_p())
+    adsSetState(amsAddr=amsAddr, adsState=c_ushort(6))
 
 def adsReset(amsAddr):
-    ads_state, device_state = adsGetAdsAndDeviceState(amsAddr)  # Retrieve device state so we don't alter it next
-    AdsDll.lib().AdsSyncWriteControlReq(byref(amsAddr), c_ushort(2), device_state, 0, c_void_p())
+    adsSetState(amsAddr=amsAddr, adsState=c_ushort(2))
 
 def adsStart(amsAddr):
-    ads_state, device_state = adsGetAdsAndDeviceState(amsAddr)  # Retrieve device state so we don't alter it next
-    AdsDll.lib().AdsSyncWriteControlReq(byref(amsAddr), c_ushort(5), device_state, 0, c_void_p())
+    adsSetState(amsAddr=amsAddr, adsState=c_ushort(5))
 
 def adsRestart(amsAddr):
-    # Stopping ads can throw an exception if it was not currently running but we can reset anyway
     try:
         adsStop(amsAddr)
-    except:
-        pass
+    except OSError as e:
+        print("Received OSError {} when trying to stop ADS, likely because ADS was not yet running".format(e))
     adsReset(amsAddr)
     adsStart(amsAddr)
 
