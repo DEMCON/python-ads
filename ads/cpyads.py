@@ -92,7 +92,9 @@ class AdsDll:
                 (lib.AdsGetLocalAddress, [POINTER(SAmsAddr)]),
                 (lib.AdsSyncReadReq, [POINTER(SAmsAddr), c_ulong, c_ulong, c_ulong, c_void_p]),
                 (lib.AdsSyncWriteReq, [POINTER(SAmsAddr), c_ulong, c_ulong, c_ulong, c_void_p]),
-                ]:
+                (lib.AdsSyncWriteControlReq, [POINTER(SAmsAddr), c_ushort, c_ushort, c_ulong, c_void_p]),
+                (lib.AdsSyncReadStateReq, [POINTER(SAmsAddr), POINTER(c_ushort), POINTER(c_ushort)])
+            ]:
                 
                 function.argtypes = argtypes
                 function.restype = checkError
@@ -113,6 +115,37 @@ def adsSyncReadReq(amsAddr, indexGroup, indexOffset, ctype):
 
 def adsSyncWriteReq(amsAddr, indexGroup, indexOffset, data):
     AdsDll.lib().AdsSyncWriteReq(byref(amsAddr), indexGroup, indexOffset, sizeof(data), byref(data))
+
+def adsGetAdsAndDeviceState(amsAddr):
+    adsState = c_ushort(0)
+    deviceState = c_ushort(0)
+    AdsDll.lib().AdsSyncReadStateReq(byref(amsAddr), byref(adsState), byref(deviceState))
+    return adsState, deviceState
+
+def adsSetState(amsAddr, adsState=None, deviceState=None):
+    currentAdsState, currentDeviceState = adsGetAdsAndDeviceState(amsAddr)
+    if adsState is None:
+        adsState = currentAdsState
+    if deviceState is None:
+        deviceState = currentDeviceState
+    AdsDll.lib().AdsSyncWriteControlReq(byref(amsAddr), adsState, deviceState, 0, c_void_p())
+
+def adsStop(amsAddr):
+    adsSetState(amsAddr=amsAddr, adsState=c_ushort(6))
+
+def adsReset(amsAddr):
+    adsSetState(amsAddr=amsAddr, adsState=c_ushort(2))
+
+def adsStart(amsAddr):
+    adsSetState(amsAddr=amsAddr, adsState=c_ushort(5))
+
+def adsRestart(amsAddr):
+    try:
+        adsStop(amsAddr)
+    except OSError as e:
+        print("Received OSError {} when trying to stop ADS, likely because ADS was not yet running".format(e))
+    adsReset(amsAddr)
+    adsStart(amsAddr)
 
 __all__ = [ 'adsPortOpen', 'adsGetLocalAddress', 'adsSyncReadReq' ]
     
